@@ -1,0 +1,23 @@
+{
+  "skill_name": "fhe-application-design",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm building a privacy-preserving credit scoring system. A bank wants to evaluate loan applications from customers without the bank seeing the customer's actual financial data (income, debt, credit history). The customer encrypts their data and the bank runs a credit scoring model on the encrypted data. Can you help me design this as an FHE application using OpenFHE? The scoring model is a logistic regression with about 15 features.",
+      "expected_output": "A structured design walkthrough covering: privacy model (customer = data owner, bank = semi-honest server, output is a single credit score which may reveal information), scheme selection (CKKS for real-valued features and logistic regression), SIMD packing strategy, circuit design for logistic regression (dot product + sigmoid approximation via Chebyshev), depth analysis, parameter selection, and discussion of output privacy concerns (the credit score itself reveals information about the inputs).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "We want to build an encrypted search system where a user can check if their email address appears in a database of leaked credentials, without revealing their email to the server and without the server revealing its full database. The database has about 100,000 entries. How would I design this with FHE and OpenFHE?",
+      "expected_output": "A design walkthrough that starts with privacy model (user's email is private, database is private or semi-private), identifies this as a set membership problem, discusses feasibility (data-oblivious comparison needed, SIMD parallelism for batch comparison), selects CKKS scheme, describes column-major packing and squared-distance comparison circuit similar to the set-membership example, addresses the scale challenge (100K entries requires batching or protocol design), and discusses parameter selection with depth budget for the comparison circuit.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I need to compute encrypted averages and standard deviations over salary data from multiple departments, where each department encrypts its own data and a central HR office combines them to get company-wide statistics. No department should see another department's individual salaries. I'm new to FHE - what scheme should I use and how do I set this up with OpenFHE?",
+      "expected_output": "A design walkthrough that identifies this as a multi-party computation scenario, discusses the privacy model (multiple data owners, central aggregator), evaluates FHE feasibility (addition and multiplication are straightforward, standard deviation requires a square root or can be left as variance), recommends CKKS for real-valued salary data, discusses whether multi-party/threshold FHE is needed vs simpler approaches, describes the circuit (sum, count, sum-of-squares for variance), notes the low multiplicative depth required, and addresses the output privacy question (aggregate statistics may still leak information about small departments).",
+      "files": []
+    }
+  ]
+}

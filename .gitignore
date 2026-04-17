@@ -1,0 +1,6 @@
+# Eval workspace (generated during development)
+*-workspace/
+
+# OS files
+.DS_Store
+Thumbs.db
