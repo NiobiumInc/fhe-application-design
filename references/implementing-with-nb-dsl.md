@@ -83,15 +83,13 @@ implementations — read the design reference and the DSL code side by side:
 
 ## Pitfalls specific to the DSL (current state)
 
-1. **Encrypted-variable detection can fall back to a name heuristic.** The
-   compiler tracks encrypted values structurally (from `enc<T>` annotations,
-   encrypted-returning builtins, and let-binding flow), but expressions it
-   cannot type fall back to name matching (`ct*`, `acc*`, `diff`, `score`,
-   `eqry`, ...; see `ENCRYPTED_PREFIXES` in `xcomp/codegen.py`). Two rules of
-   thumb: give encrypted locals conventional names (`ct_x`, `acc`, `diff`),
-   and **never** give plaintext locals names matching those prefixes
-   (`result_index`, `hidden_dim` would be misclassified). When in doubt,
-   annotate: `let x: enc<vec<f64>> = ...`.
+1. **Heed the heuristic-fallback warning.** Encrypted-ness is tracked
+   structurally (annotations, builtin/user-fn return types, let-binding flow,
+   loop elements, combinator-closure params, wire fields, destructured
+   tuples) — all shipped examples compile with zero name-heuristic fallbacks.
+   If `nbc compile` warns that a variable's "encrypted-ness ... was decided by
+   the variable-name heuristic", don't ignore it: add an annotation
+   (`let x: enc<vec<f64>> = ...`) or rename the variable if it is plaintext.
 
 2. **Some wire-type names are special-cased.** `CryptoParams`,
    `EncryptedResult`, `EncryptedQuery`, and `EncryptedDB` get bespoke
