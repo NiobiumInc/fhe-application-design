@@ -218,3 +218,23 @@ with rate limiting), collusion.
 | Decryption | ~0.01 s | ~0.01 s |
 
 Evaluation time scales linearly with the number of batches.
+
+## DSL Implementation
+
+A complete, tested implementation of this design exists in the `nb` FHE DSL:
+`niobium-client/dsl_fhe/examples/set-membership/` (~180 lines of `.nb` plus a
+small Python encoding harness). Design decision → code location:
+
+| Design decision (this document) | DSL code |
+|---|---|
+| Name/Soundex encoding (Layer 1) | `harness/encode_names.py` — plaintext preprocessing, outside the circuit |
+| Column-major packing (Layer 2) | `client.nb` `encrypt_query` — one ciphertext per character position via `qmat[0..n_slots, pos]` column slices |
+| Squared distance + iterated squaring (Layer 3) | `server.nb` `compute` — `diff * diff` accumulation, `1 - acc/C`, K-round squaring loop |
+| Slot aggregation (Layer 3) | `ct_t \|> slot_sum(inst.n_slots)` |
+| Depth budget 2 + K | `Instance.depth` per profile + `scheme.override(depth: inst.depth)` |
+| Exact vs. Soundex profiles | `Profile` enum: Exact (L=20, K=16, depth 18), Soundex (L=4, K=14, depth 16) |
+| Four-program protocol (Layer 4) | `@stage` functions: `key_generation`, `encrypt_query`, `compute`, `decrypt_verify` |
+
+Verified end-to-end (`make test-set-membership`): exact match → score 1.000,
+no match → 7e-15, Soundex fuzzy "Robbrt Johnson" → 10.021 against 10 expected
+collisions.

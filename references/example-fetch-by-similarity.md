@@ -209,3 +209,13 @@ across multiple ciphertexts into a compact output format. The algorithm:
 The multi-executable structure (separate binaries for each stage) simulates
 the client-server separation and enables independent timing measurement
 of each phase.
+
+## DSL Implementation
+
+A complete implementation of this design exists in the `nb` FHE DSL:
+`niobium-client/dsl_fhe/examples/fetch-by-similarity/` (~590 lines of `.nb`
+replacing ~2,900 lines of C++). The Chebyshev threshold comparison, slot
+replication, running sums, and payload extraction each map to dedicated
+shared functions in `server.nb`; the harness (`harness/run.py`) generates the
+dataset, orchestrates the pipeline, and verifies all extracted payloads
+against a cleartext reference. Run with `make test-fetch`.

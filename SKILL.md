@@ -379,6 +379,32 @@ the references directory show concrete parameter selections with rationale.
 
 ## Stage 7: Implement, Test, and Iterate
 
+There are two implementation tracks. Choose based on what is available and
+what the design requires:
+
+- **Track A — the `nb` FHE DSL (preferred).** If the
+  [niobium-client](https://github.com/NiobiumInc/niobium-client) repository is
+  available (look for a `dsl_fhe/` directory), implement in the `nb`
+  domain-specific language. The DSL generates everything Track B builds by
+  hand — the four-program architecture, all serialization, CMake, key
+  generation matched to the operations used, and record/replay
+  instrumentation — from ~3 short `.nb` files. Trust boundaries from Stage 1
+  become compiler-enforced (`@client`/`@server`; server code referencing the
+  secret key is a compile error). This track is dramatically less error-prone
+  and keeps the whole application within one context window.
+  **Read `references/implementing-with-nb-dsl.md`** for the stage-by-stage
+  mapping from this skill's design outputs to DSL constructs, the workflow,
+  and current limitations.
+
+- **Track B — raw OpenFHE C++.** Use when the DSL is unavailable, or when the
+  design needs features the DSL does not yet express: **BFV/BGV** (the DSL is
+  CKKS-only today), **transciphering** (Stage 5 output integrity),
+  **threshold/multi-party keys**, or **bootstrapping**. The rest of this
+  stage describes Track B; it is also the reference model for understanding
+  what Track A generates.
+
+### Track B: the four-program architecture (raw OpenFHE)
+
 Build the FHE version using OpenFHE as four separate executable programs.
 This structure enforces the trust boundaries from the protocol — each program
 runs in a distinct security context, communicates via serialized files, and
@@ -490,6 +516,7 @@ self-contained and can be read independently.
 | `references/fhe-what-fhe-can-and-cannot-do.md` | Stage 2: assessing whether a workload is FHE-feasible |
 | `references/fhe-scheme-selection.md` | Stage 4: choosing between CKKS, BFV, and BGV |
 | `references/building-your-first-fhe-application.md` | Stages 3, 6, 7: the development checklist from plaintext through implementation |
+| `references/implementing-with-nb-dsl.md` | Stage 7 Track A: implementing the design in the `nb` FHE DSL (niobium-client) — stage-to-construct mapping, workflow, pitfalls, limitations |
 | `references/fhe-application-dialogue.md` | Stages 3–7: a worked example showing all steps for a real anomaly detection application |
 | `references/example-set-membership.md` | Stages 5–8: complete CKKS design spec and implementation (squared distance, iterated squaring, column-major packing, threat model) |
 | `references/example-fetch-by-similarity.md` | Stage 5: advanced CKKS patterns (Chebyshev approximation, slot replication, running sums, output compression) |

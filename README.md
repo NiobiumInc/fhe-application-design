@@ -12,7 +12,7 @@ When a user asks Claude to design an FHE application, this skill provides struct
 4. **Scheme selection** — CKKS vs. BFV vs. BGV, with justification
 5. **Circuit design** — SIMD packing, comparison strategies, depth budget, transciphering layer
 6. **Parameter selection** — ring dimension, depth, scaling modulus, size/bandwidth estimation
-7. **Implementation** — four-program architecture (keygen, encrypt, server, decrypt) plus test runner
+7. **Implementation** — two tracks: the `nb` FHE DSL (niobium-client; generates the whole pipeline from ~3 short files) or raw OpenFHE C++ (four-program architecture: keygen, encrypt, server, decrypt, plus test runner)
 8. **Protocol specification** — message flow, threat model, information leakage, integrity guarantees
 
 The skill ensures that common protocol-level errors are caught early: packing data across privacy boundaries, ignoring output integrity when the decryptor differs from the consumer, conflating SIMD parallelism with task-level concurrency, and over-provisioning ciphertext depth.
@@ -51,7 +51,8 @@ fhe-application-design/
 │   ├── example-set-membership.md
 │   ├── example-fetch-by-similarity.md
 │   ├── example-network-intrusion-detection.md
-│   └── openfhe-examples-catalog.md
+│   ├── openfhe-examples-catalog.md
+│   └── implementing-with-nb-dsl.md
 └── evals/                    # Evaluation suite for skill quality
     └── evals.json
 ```
