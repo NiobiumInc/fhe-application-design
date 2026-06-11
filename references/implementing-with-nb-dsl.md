@@ -51,6 +51,13 @@ to transcribe the design:
    matrices/vectors, loaded with `load_matrix`/`load_vec`. The harness should
    also print/compute the **expected plaintext result** so the decrypt stage
    can verify against it — this is the Stage 3 "ground truth" discipline.
+   The compiler reinforces it: for every stage free of non-twinnable
+   constructs (`extern_call`, `replicate`, `running_sums`, `load_model`), it
+   ALSO generates a `<stage>_ref` **cleartext reference twin** — the same
+   `.nb` circuit with plaintext semantics (`enc<T>` → slot vectors, FHE ops →
+   elementwise arithmetic, `chebyshev` → the true function). Run the `_ref`
+   pipeline alongside the encrypted one; the difference between the two
+   outputs is exactly the approximation + noise error.
 
 2. **Write three files** in `dsl_fhe/examples/<name>/`:
    - `shared.nb` — `Instance` struct (per-profile `ring_dim`, depth, sizes),
