@@ -51,6 +51,13 @@ to transcribe the design:
    matrices/vectors, loaded with `load_matrix`/`load_vec`. The harness should
    also print/compute the **expected plaintext result** so the decrypt stage
    can verify against it — this is the Stage 3 "ground truth" discipline.
+   The compiler reinforces it: for every stage free of non-twinnable
+   constructs (`extern_call`, `replicate`, `running_sums`, `load_model`), it
+   ALSO generates a `<stage>_ref` **cleartext reference twin** — the same
+   `.nb` circuit with plaintext semantics (`enc<T>` → slot vectors, FHE ops →
+   elementwise arithmetic, `chebyshev` → the true function). Run the `_ref`
+   pipeline alongside the encrypted one; the difference between the two
+   outputs is exactly the approximation + noise error.
 
 2. **Write three files** in `dsl_fhe/examples/<name>/`:
    - `shared.nb` — `Instance` struct (per-profile `ring_dim`, depth, sizes),
@@ -91,12 +98,13 @@ implementations — read the design reference and the DSL code side by side:
    the variable-name heuristic", don't ignore it: add an annotation
    (`let x: enc<vec<f64>> = ...`) or rename the variable if it is plaintext.
 
-2. **Some wire-type names are special-cased.** `CryptoParams`,
-   `EncryptedResult`, `EncryptedQuery`, and `EncryptedDB` get bespoke
-   serialization layouts. Reuse `CryptoParams` and `EncryptedResult` (they fit
-   most designs); for anything else prefer a **fresh name** (e.g.
-   `EncryptedName`) to get the predictable generic layout (single-ct field →
-   one file; `vec<enc<T>>` field → `field_<i>.bin` per element).
+2. **Wire layouts are field-type-driven — names carry no special meaning.**
+   Every wire serializes the same way: `enc<T>` → `{field}.bin`,
+   `vec<enc<T>>` → `{field}_<i>.bin`, `vec<vec<enc<T>>>` →
+   `batchNNNN/{field}_NNNN.bin`; a wire carrying a `CryptoContext` field (any
+   name) gets the canonical `cc/pk/mk/rk` key layout; a `from:`/`to:` path
+   naming a `.bin` file addresses a single-enc-field wire directly. Name your
+   wires whatever fits the domain.
 
 3. **One static `scheme` block per application.** Per-instance variation goes
    through `Instance` fields + `scheme.override(depth: ...)` /
