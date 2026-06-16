@@ -595,7 +595,7 @@ what the design requires:
   domain-specific language. The DSL generates everything Track B builds by
   hand — the four-program architecture, all serialization, CMake, key
   generation matched to the operations used, and record/replay
-  instrumentation — from ~3 short `.nb` files. Trust boundaries from Stage 1
+  instrumentation — from ~3 short `.niob` files. Trust boundaries from Stage 1
   become compiler-enforced (`@client`/`@server`; server code referencing the
   secret key is a compile error). This track is dramatically less error-prone
   and keeps the whole application within one context window.

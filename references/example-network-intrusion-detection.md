@@ -292,7 +292,7 @@ mirrors the plaintext `execute` method, enabling direct comparison.
 
 A complete implementation of this design exists in the `nb` FHE DSL:
 `niobium-client/dsl_fhe/examples/fhe-NetworkMonitor/`. The autoencoder
-ensemble and anomaly detector are shared functions in `server.nb` with
+ensemble and anomaly detector are shared functions in `server.niob` with
 Chebyshev-approximated sigmoid/tanh activations; the binary KitNET model
 loader is generated from the `KitNETModel` struct declaration; feature-major
 packing is one ciphertext per feature column. The default build runs against

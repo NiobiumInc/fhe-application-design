@@ -4,7 +4,7 @@ This reference covers Stage 7 **Track A**: turning the design produced by
 Stages 1–6 into a working application using the `nb` domain-specific language
 and its `nbc` cross-compiler, which live in the
 [niobium-client](https://github.com/NiobiumInc/niobium-client) repository under
-`dsl_fhe/`. The DSL compiles `.nb` source to OpenFHE C++ and generates
+`dsl_fhe/`. The DSL compiles `.niob` source to OpenFHE C++ and generates
 everything the raw-C++ track builds by hand: the four-program architecture,
 serialization, CMake, key generation matched to the operations used, and
 Niobium record/replay instrumentation.
@@ -55,17 +55,17 @@ to transcribe the design:
    The compiler reinforces it: for every stage free of non-twinnable
    constructs (`extern_call`, `replicate`, `running_sums`, `load_model`), it
    ALSO generates a `<stage>_ref` **cleartext reference twin** — the same
-   `.nb` circuit with plaintext semantics (`enc<T>` → slot vectors, FHE ops →
+   `.niob` circuit with plaintext semantics (`enc<T>` → slot vectors, FHE ops →
    elementwise arithmetic, `chebyshev` → the true function). Run the `_ref`
    pipeline alongside the encrypted one; the difference between the two
    outputs is exactly the approximation + noise error.
 
 2. **Write three files** in `dsl_fhe/examples/<name>/`:
-   - `shared.nb` — `Instance` struct (per-profile `ring_dim`, depth, sizes),
+   - `shared.niob` — `Instance` struct (per-profile `ring_dim`, depth, sizes),
      directory-layout helpers, `wire` types.
-   - `client.nb` — `scheme` block, `requires`, then `@client` stages:
+   - `client.niob` — `scheme` block, `requires`, then `@client` stages:
      key generation, input encryption, decrypt-and-verify.
-   - `server.nb` — `@server @stage(...) @hardware(cache_key: [...])` compute
+   - `server.niob` — `@server @stage(...) @hardware(cache_key: [...])` compute
      stage(s) plus shared circuit functions.
 
 3. **Add Makefile targets** (`<name>` and `test-<name>`) following
@@ -95,7 +95,7 @@ implementations — read the design reference and the DSL code side by side:
 
 | Design reference | DSL implementation (`dsl_fhe/examples/`) |
 |---|---|
-| `example-set-membership.md` | `set-membership/` — exact + Soundex profiles, squared distance + iterated squaring, ~180 lines of `.nb` |
+| `example-set-membership.md` | `set-membership/` — exact + Soundex profiles, squared distance + iterated squaring, ~180 lines of `.niob` |
 | `example-fetch-by-similarity.md` | `fetch-by-similarity/` — Chebyshev threshold, slot replication, running sums, payload extraction |
 | `example-network-intrusion-detection.md` | `fhe-NetworkMonitor/` — autoencoder ensemble, Chebyshev sigmoid/tanh, feature-major packing |
 
