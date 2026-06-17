@@ -217,6 +217,29 @@ structure already in place:
 
 ### Activation-range feasibility check (and when to recommend changing the model)
 
+**This is a pre-design precondition, not a mid-design check — run it as a gate
+and stop if it fails.** For the ML-inference template the decisive entry
+condition is that the *reference model keeps every layer's pre-activations in a
+compact band* on the representative data (roughly within ±8 — the widest a
+low-degree Chebyshev fits and still decodes inside the no-bootstrapping depth
+budget). Confirm this BEFORE authoring anything: it is cheap (one forward pass
+of the plaintext reference) and it is the difference between "fill in the
+template" and days of degree/domain/depth/filter thrashing. Grade it:
+
+- **bulk within band, no tail** → easy: low degree, no filter.
+- **bulk within band, thin benign tail** → workable: tight domain + a pre-flight
+  filter (the composition guard must confirm the rejected set is not enriched
+  for the target class).
+- **bulk exceeds the band** → *not feasible as-is*. Do not proceed to design and
+  do not try to rescue it with a higher degree (that overruns the depth budget
+  and overflows decode). Hand back a model-side recommendation — weight decay /
+  BatchNorm at train time, clipped activations, input normalization — which
+  returns as a *new* reference that re-enters this gate.
+
+The agent enforces this deterministically (it will refuse to design an
+out-of-band model rather than rely on judgment to stop). The rest of this
+section is the mechanism behind the grades.
+
 A Chebyshev (or Taylor) approximation is only valid *inside* its fit interval;
 outside that interval it does not merely lose accuracy, it diverges — by many
 orders of magnitude for a steep function like sigmoid. So before locking in the
@@ -298,6 +321,19 @@ When a tight domain is accurate but a few records escape it, the right move is t
 **reject those records**, not to distort the approximation for everyone. Make it
 a bounded, measured decision:
 
+- **Where the filter runs — client input-prep, NOT the FHE program.** The
+  rejection happens *before* encryption, as part of the client's input
+  preparation: the client reads `feature_bounds.csv`, drops out-of-domain
+  records, and only then encodes/encrypts the admitted batch. Do **not**
+  implement the bounds check inside the `.nb` program. An out-of-domain record
+  isn't a "slightly wrong" answer — the polynomial diverges on it and (in a
+  batched pack) overflows the shared scale so the *entire* batch fails to
+  `Decode`; the float reference twin can't see this (no scale), so it must be
+  prevented at the input, not patched in-circuit. Authoring the check into the
+  `.nb` also forces fragile column-major compaction and wire-serialization
+  workarounds for no benefit. Keep the `.nb` a plain forward pass over the
+  admitted batch; let the client wrapper enforce the box.
+
 - **What you filter against (and why it's a proxy).** The true constraint is the
   activation's domain on its **pre-activations** (`W·x + b`), but the client
   can't evaluate that — the *weights are the server's*. So the runtime check is a
@@ -308,6 +344,14 @@ a bounded, measured decision:
   pre-activations inside the domain on the representative set. The design emits
   the CSV (input ranges only — **no weights**, so it's trust-model-safe); the
   client enforces it pre-flight.
+
+- **Where the box lives (fixed path — do not improvise).** The harness stages
+  `feature_bounds.csv` into the run's **`io/`** directory, alongside
+  `input.bin`, and the `@client` stage runs with its working directory at the
+  build root. Read the box from exactly **`io/feature_bounds.csv`** — the same
+  fixed I/O contract as the input data. Do **not** invent another location
+  (e.g. `model/`): a path the harness doesn't stage to makes the stage crash
+  with `Cannot open .../feature_bounds.csv` and the whole candidate fails.
 
 - **The two thresholds.** Search `(domain, degree)` for a point satisfying **both**
   `reject_rate ≤ R_max` (default **1%**) **and** `polynomial_accuracy ≥ A_min`
@@ -485,9 +529,19 @@ The key parameters for CKKS (and analogous choices for BFV/BGV):
 
 - **Ring dimension (N).** Determines the number of SIMD slots (N/2 for CKKS,
   N for BFV/BGV) and the achievable security level for a given modulus size.
-  Typical choices are 2^15 (32,768) or 2^16 (65,536). Larger N means more
-  slots and support for deeper circuits, but larger ciphertexts and slower
-  operations.
+  **The backend floor is 2^16 (65,536); 2^15 is not supported.** N must also
+  be large enough that the total modulus `logQ` is secure at the target level:
+  compute `logQ ≈ first_mod + depth × scaling_mod` (plus the hybrid
+  key-switching special modulus, which adds materially), then pick the
+  smallest secure N. For the ML workloads here — depth ~12, scaling ~45,
+  first_mod ~55 → logQ ≈ 600 — **128-bit security requires N = 2^16**. Do
+  **not** author 2^15: it both undershoots the backend floor and fails
+  security for any non-trivial logQ. Pick N = 2^16 (n_slots = 32,768) for the
+  secure profile from the start. **Set it as a literal `ring_dim: 65536` in the
+  `scheme` block** — that is the field codegen honors. Do *not* rely on carrying
+  `ring_dim` only on the `Instance` struct: when the scheme block omits it,
+  codegen falls back to `n_slots` (= N/2 = 32,768), silently dropping below the
+  floor and failing key generation at build time.
 
 - **Multiplicative depth.** Set to match your circuit's depth budget from
   Stage 5. This is the most important parameter — it drives the modulus chain
@@ -502,9 +556,12 @@ The key parameters for CKKS (and analogous choices for BFV/BGV):
   Typically 50–60 bits. Provides headroom for the initial encryption.
 
 - **Security level.** Target HEStd_128_classic (128-bit classical security)
-  unless you have a specific reason for a different level. OpenFHE enforces
-  this — if your parameters don't achieve the target security, it will
-  automatically promote the ring dimension.
+  unless you have a specific reason for a different level. **Do not assume the
+  backend auto-promotes the ring** to meet security — it does not; a ring too
+  small for the declared security + logQ is a hard **key-generation error**
+  ("ring dimension N does not comply with HE standards"), which wastes a whole
+  build. Size N correctly up front (see Ring dimension above): for these ML
+  workloads that means N = 2^16.
 
 - **Scaling technique.** Use FLEXIBLEAUTO in OpenFHE for automatic rescaling
   in CKKS. This inserts rescale operations as needed to keep ciphertext
@@ -513,6 +570,49 @@ The key parameters for CKKS (and analogous choices for BFV/BGV):
 - **Rotation keys.** Generate keys for every rotation amount your circuit
   uses (powers of 2 for rotate-and-sum, specific offsets for data
   rearrangement). Missing rotation keys cause runtime errors.
+
+**Decode safety is a modulus-chain budget, not operand magnitude.** A CKKS
+circuit fails to decode ("approximation error too high") when the live modulus
+left *after* the circuit consumes its multiplicative levels no longer exceeds
+the scaled message plus a noise margin — not because intermediate values are
+"large." Two failure modes look identical at the `Decode` call but need
+opposite fixes:
+
+- **Per-operation precision erosion** — operands are well inside the activation
+  domain, but the per-level precision (scaling modulus) is too coarse, so noise
+  overruns the scale. Fix: **raise the scaling modulus** `q_i` (more bits per
+  level). Depth does *not* help — more levels don't lift the per-operation noise
+  floor (the long-standing "don't add depth for precision" rule).
+- **Noise-budget exhaustion** — the cleartext twin is *accurate* (operands
+  in-domain, the polynomial is a good fit) yet the encrypted run still overflows
+  `Decode`. The modulus chain ran short, not the precision. Fix: **raise the
+  multiplicative depth** — more RNS limbs means a larger total modulus and more
+  budget — *before* coarsening the polynomial by dropping the approximation
+  degree. Degree drop is the last resort: it sheds the very accuracy you are
+  trying to keep.
+
+  *Calibration anchor:* a degree-7 sigmoid over a tight domain (≈[-7, 7]) on the
+  fraud MLP decodes cleanly at **depth 15 / scaling 59 / first_mod 60 / N = 2^16**
+  but **overflows at depth 12 / scaling 45** *at the same operand magnitude* —
+  the discriminator is the chain budget, not the values.
+
+**Predict decode failure from the cleartext side — don't spend an encrypted run
+to discover it.** The float reference twin can't see the CKKS scale, but you can
+model the budget it implies. Estimate the levels the circuit consumes — roughly
+one Chebyshev eval per hidden activation at `ceil(log2(degree+1)) + 1` levels
+each, plus one rescale per linear (cipher × plaintext) layer under FLEXIBLEAUTO,
+plus a small margin — then require
+
+```
+first_mod + (depth − levels) × scaling  >  scaling + log2(worst_operand) + noise_margin
+```
+
+(a ~10-bit noise margin is a safe default). If the left side is underwater, the
+circuit will overflow `Decode`; raise depth (or scaling) before running
+encryption. This turns the two-speed loop's fast cleartext pass into a decode
+gate, so the expensive encrypted run is reserved for designs already predicted
+safe. Erring conservative is cheap: a falsely-"unsafe" verdict only adds depth,
+which is the correct move anyway.
 
 **Size estimation.** After choosing parameters, estimate the physical sizes
 of ciphertexts and keys. These determine client memory requirements and
